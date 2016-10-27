@@ -6,56 +6,10 @@
 import tkinter as tk
 import tkinter.filedialog
 import tkinter.messagebox
+import tkinter.simpledialog
 import sys
 import queue
 import asyncio
-
-menu_commands = {
-    "open_file": lambda: print("moo")
-}
-
-def retrieve_command(action):
-        """
-        It uses the menu_commands table to retrieve the function tied to the action's label that is to be run
-        """
-        return menu_commands.get(action)
-
-class MenuRepresentation:
-	"""
-	Representation of a menu and its submenus
-	"""
-	def __init__(self):
-		"""
-		Initialization of the menu, doesn't take any parameters
-		"""
-		self.submenus = []
-		self.actions = []
-	
-	def add_action(self, text, command):
-		"""
-		Add an action of label 'text' to the menu, hopefully the action has a function tied to it in menu_commands
-		"""
-		self.actions.insert(0, (text, command))
-	
-	def add_submenu(self, label, menurep):
-		"""
-		Add a submenu from the MenuRepresentation 'menurep' with the label 'label' to be nested in the current menu
-		"""
-		self.submenus.insert(0, (label, menurep))
-	
-	def build_menu(self, master):
-		"""
-		Build the real tkinter menu object, from the object's actions and submenus. All submenus are built as well and nested in the parent menu
-		"""
-		selfobj = tk.Menu(master)
-		
-		for action in self.actions:
-			selfobj.add_cascade(label=action[0], command = action[1])
-		
-		for submenu in self.submenus:
-			selfobj.add_cascade(label=submenu[0], menu = submenu[1].build_menu(selfobj))
-		
-		return selfobj
 
 class window(tk.Tk):
     def __init__(self):
@@ -76,20 +30,13 @@ class window(tk.Tk):
                 selectforeground = "black"
         )
         self.code_entry.grid(row = 0, column = 0, padx = 5, pady = 5, sticky = "nsew")
-        self.output_entry = tk.Entry(self.lframe,
+        self.output_entry = tk.Text(self.lframe,
                 cursor = "xterm",
                 state = tk.DISABLED,
-                disabledbackground = "white",
-                disabledforeground = "black",
-                width = 70
+                width = 80,
+                height = 2,
         )
         self.output_entry.grid(row = 2, column = 0, padx = 2)
-        self.input_entry = tk.Entry(self.lframe,
-                background = "white",
-                cursor = "xterm",
-                width = 70
-        )
-        self.input_entry.grid(row = 1, column = 0, padx = 1)
 
         self.MemoryBar = tk.Frame(self.mframe, bg = "grey", cursor = "tcross")
         self.MemoryBar.grid(row = 0, column = 1, sticky = "snew")
@@ -148,7 +95,6 @@ class window(tk.Tk):
         data = self.code_entry.get('0.0', 'end')
         if len(data.replace('\n', '')) > 0:
             res = tkinter.messagebox.askyesnocancel("Closing", "Do you want to save?", icon = 'question')
-            print(res)
             if res == None:
                 return
             elif res:
@@ -188,7 +134,6 @@ class window(tk.Tk):
         if not newfile or len(newfile) == 0:
             return
         if self.code_entry.get('0.0', 'end').replace('\n', '') != "":
-            print(str(self.code_entry.get('0.0', 'end')))
             result = tkinter.messagebox.askyesnocancel("Delete", "Save?", icon='warning')
             if result == "cancel":
                 return
@@ -222,24 +167,32 @@ class window(tk.Tk):
     def run_code(self):
         self.running = True
         self.code_entry.configure(state = tk.DISABLED)
+        self.output_entry.configure(state = tk.NORMAL)
+        self.output_entry.delete('0.0', 'end')
+        self.output_entry.configure(state = tk.DISABLED)
         self.MemoryBar.runButton.configure(state = tk.DISABLED)
+        self.MemoryBar.debugButton.configure(state = tk.DISABLED)
+        self.MemoryBar.stepButton.configure(state = tk.DISABLED)
         d = self.code_entry.get('0.0', 'end')
         self.machine.feed(d)
         r, m = self.machine.start()
         while self.running and not self.machine.eof():
-            inp = self.input_entry.get()
-            if len(inp) > 0:
-                self.machine.inject(inp)
-                self.input_entry.delete(0, len(inp))
             self.machine.step()
+            pos = self.machine.getposition()
             d = self.machine.extract()
             if d:
-                print(d)
+                self.output_entry.configure(state=tk.NORMAL)
+                self.output_entry.insert('end', d)
+                self.output_entry.configure(state=tk.DISABLED)
+            
             if self.machine.awaiting_input:
-                pass
+                query = tkinter.simpledialog.askstring("Input Required", "An input is required by the program")
+                self.machine.inject((query or "") + '\0')
 
         self.machine.stop()
         self.MemoryBar.runButton.configure(state = tk.NORMAL)
+        self.MemoryBar.debugButton.configure(state = tk.NORMAL)
+        self.MemoryBar.stepButton.configure(state = tk.NORMAL)
         self.code_entry.configure(state = tk.NORMAL)
 
 
@@ -271,6 +224,9 @@ class FuckingMachine:
 
     def feed(self, content):
         self.buffer += content
+
+    def getposition(self):
+        return self.position
 
     def assertion(self):
         n = 0
@@ -310,23 +266,28 @@ class FuckingMachine:
             elif c == '<':
                 self.cursor = (self.cursor - 1)%65535
             elif c == '.':
-                print("iWrote")
                 self.ostream.put(chr(self.memory[self.cursor]))
             elif c == ',':
                 if not self.istream.empty():
                     inp = self.istream.get()
-                    print("IRED " + inp)
                     self.memory[self.cursor] = ord(inp)
                     self.awaiting_input = False
+                else:
+                    self.awaiting_input = True
+                    return
 
             elif c == '[':
                 if self.memory[self.cursor]:
                     self.loop_register.append(self.position)
                 else:
-                    chara = ""
-                    while chara != ']':
+                    depth = 1
+                    while depth > 0:
                         self.position += 1
                         chara = self.buffer[self.position]
+                        if chara == '[':
+                            depth += 1
+                        elif chara == ']':
+                            depth -= 1
                    
             elif c == ']':
                 if self.memory[self.cursor]:
