@@ -84,6 +84,7 @@ class window(tk.Tk):
         self.mainmenu.add_cascade(label = "File", menu = filem)
 
         self.config(menu=self.mainmenu)
+        self.init()
 
     def _get_event_wrapper(self, func):
         def _wrapper(event):
@@ -150,7 +151,13 @@ class window(tk.Tk):
         self.curfile = newfile
 
     def init(self):
-        pass
+        self.MemoryBar.indicator.configure(state=tk.NORMAL)
+        for i in range(39):
+            self.MemoryBar.indicator.insert('{0}.0'.format(i+1), "  {0} 00\n".format(i+1))
+        self.MemoryBar.indicator.insert('0.0', "> 0 00\n")
+        k,m = self.MemoryBar.indicator.winfo_height(), self.MemoryBar.indicator.winfo_width()
+        print(k,m)
+        self.MemoryBar.indicator.configure(state = tk.DISABLED)
 
     def break_code(self):
         self.running = False
