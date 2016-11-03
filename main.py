@@ -152,24 +152,26 @@ class window(tk.Tk):
 
     def init(self):
         self.MemoryBar.indicator.configure(state=tk.NORMAL)
-        for i in range(39):
-            self.MemoryBar.indicator.insert('{0}.0'.format(i+1), "  {0} 00\n".format(i+1))
-        self.MemoryBar.indicator.insert('0.0', "> 0 00\n")
+        self.MemoryBar.indicator.delete('0.0', 'end')
+        position = self.machine.position
+        
+        lrange, mrange = 0, 32
+        if position > 16:
+            lrange = position-16
+            mrange = position+16
+       
+        for index in range(lrange, mrange):
+            self.MemoryBar.indicator.insert('end', "   {0} {1}\n".format(index, self.machine.memory[index]))
+            if (self.machine.memory[index]) != 0:
+                print(index)
+                print(self.machine.memory[index])
+
         k,m = self.MemoryBar.indicator.winfo_height(), self.MemoryBar.indicator.winfo_width()
-        print(k,m)
         self.MemoryBar.indicator.configure(state = tk.DISABLED)
 
     def break_code(self):
         self.running = False
         self.init()
-
-    @asyncio.coroutine
-    def await_input(self, future):
-        while self.input_entry.get() == "":
-            #yield from asyncio.sleep(1)
-            pass
-        future.set_result(self.input_entry.get())
-        self.input_entry.delete(0, len(self.input_entry.get()))
 
     def run_code(self):
         self.running = True
@@ -195,6 +197,7 @@ class window(tk.Tk):
             if self.machine.awaiting_input:
                 query = tkinter.simpledialog.askstring("Input Required", "An input is required by the program")
                 self.machine.inject((query or "") + '\0')
+            self.init()
 
         self.machine.stop()
         self.MemoryBar.runButton.configure(state = tk.NORMAL)
