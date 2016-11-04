@@ -54,9 +54,9 @@ class window(tk.Tk):
         self.MemoryBar.runButton = tk.Button(self.MemoryBar.bframe, text= "RUN", command = self.run_code)
         self.MemoryBar.runButton.grid(row = 0, column = 0, sticky = "snew")
         self.bind_all("<KeyPress-F5>", self._get_event_wrapper(self.run_code))
-        self.MemoryBar.stepButton = tk.Button(self.MemoryBar.bframe, text = "STEP")
+        self.MemoryBar.stepButton = tk.Button(self.MemoryBar.bframe, text = "STEP", command = self.step_code)
         self.MemoryBar.stepButton.grid(row = 1, column = 0, sticky = "snew")
-        self.MemoryBar.resetButton = tk.Button(self.MemoryBar.bframe, text = "RESET")
+        self.MemoryBar.resetButton = tk.Button(self.MemoryBar.bframe, text = "RESET", command = self.stop_code)
         self.MemoryBar.resetButton.grid(row = 0, column = 1, sticky = "snew")
         self.MemoryBar.debugButton = tk.Button(self.MemoryBar.bframe, text = "DEBUG")
         self.MemoryBar.debugButton.grid(row = 1, column = 1, sticky = "snew")
@@ -84,7 +84,9 @@ class window(tk.Tk):
         self.mainmenu.add_cascade(label = "File", menu = filem)
 
         self.config(menu=self.mainmenu)
-        self.init()
+        self.init_indic()
+
+        self.running_code, self.step, self.debug = False, False, False
 
     def _get_event_wrapper(self, func):
         def _wrapper(event):
@@ -150,7 +152,7 @@ class window(tk.Tk):
         self.code_entry.insert('0.1', newdata)
         self.curfile = newfile
 
-    def init(self):
+    def init_indic(self):
         self.MemoryBar.indicator.configure(state=tk.NORMAL)
         self.MemoryBar.indicator.delete('0.0', 'end')
         position = self.machine.position
@@ -171,9 +173,23 @@ class window(tk.Tk):
 
     def break_code(self):
         self.running = False
-        self.init()
+        self.init_indic()
 
     def run_code(self):
+        self.running_code = True
+        self.init_run_code()
+        self.single_code_step()
+        self.stop_code()
+
+    def step_code(self):
+        self.step = True
+        self.init_run_code()
+        self.single_code_step()
+        self.step = True
+        if self.machine.eof():
+            self.stop_code()
+
+    def init_run_code(self):
         self.running = True
         self.code_entry.configure(state = tk.DISABLED)
         self.output_entry.configure(state = tk.NORMAL)
@@ -185,7 +201,9 @@ class window(tk.Tk):
         d = self.code_entry.get('0.0', 'end')
         self.machine.feed(d)
         r, m = self.machine.start()
-        while self.running and not self.machine.eof():
+
+    def single_code_step(self):
+        while (self.running_code or self.step or self.debug) and not self.machine.eof():
             self.machine.step()
             pos = self.machine.getposition()
             d = self.machine.extract()
@@ -197,14 +215,19 @@ class window(tk.Tk):
             if self.machine.awaiting_input:
                 query = tkinter.simpledialog.askstring("Input Required", "An input is required by the program")
                 self.machine.inject((query or "") + '\0')
-            self.init()
+            self.init_indic()
+            self.step = False
 
+    def stop_code(self):
         self.machine.stop()
+        self.unlock_buttons()
+        self.running_code, self.step, self.debug = False, False, False
+
+    def unlock_buttons(self):
         self.MemoryBar.runButton.configure(state = tk.NORMAL)
         self.MemoryBar.debugButton.configure(state = tk.NORMAL)
         self.MemoryBar.stepButton.configure(state = tk.NORMAL)
         self.code_entry.configure(state = tk.NORMAL)
-
 
 class FuckingMachine:
     def __init__(self):
