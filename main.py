@@ -9,7 +9,6 @@ import tkinter.messagebox
 import tkinter.simpledialog
 import sys
 import queue
-import asyncio
 
 class window(tk.Tk):
     def __init__(self):
