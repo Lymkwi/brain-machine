@@ -55,10 +55,13 @@ class window(tk.Tk):
         self.bind_all("<KeyPress-F5>", self._get_event_wrapper(self.run_code))
         self.MemoryBar.stepButton = tk.Button(self.MemoryBar.bframe, text = "STEP", command = self.step_code)
         self.MemoryBar.stepButton.grid(row = 1, column = 0, sticky = "snew")
+        self.bind_all("<KeyPress-F8>", self._get_event_wrapper(self.step_code))
         self.MemoryBar.resetButton = tk.Button(self.MemoryBar.bframe, text = "RESET", command = self.stop_code)
         self.MemoryBar.resetButton.grid(row = 0, column = 1, sticky = "snew")
+        self.bind_all("<KeyPress-F6>", self._get_event_wrapper(self.stop_code))
         self.MemoryBar.debugButton = tk.Button(self.MemoryBar.bframe, text = "DEBUG")
         self.MemoryBar.debugButton.grid(row = 1, column = 1, sticky = "snew")
+        self.bind_all("<KeyPress-F9>", self._get_event_wrapper(print))
 
         self.machine = FuckingMachine()
         self.curfile = ""
@@ -181,7 +184,6 @@ class window(tk.Tk):
         self.stop_code()
 
     def step_code(self):
-        self.step = True
         self.init_run_code()
         self.single_code_step()
         self.step = True
@@ -216,6 +218,10 @@ class window(tk.Tk):
                 self.machine.inject((query or "") + '\0')
             self.init_indic()
             self.step = False
+
+        if self.machine.eof():
+            self.stop_code()
+        self.MemoryBar.stepButton.configure(state=tk.NORMAL)
 
     def stop_code(self):
         self.machine.stop()
@@ -255,7 +261,7 @@ class FuckingMachine:
             self.istream.put(c)
 
     def feed(self, content):
-        self.buffer += content
+        self.buffer = content
 
     def getposition(self):
         return self.position
